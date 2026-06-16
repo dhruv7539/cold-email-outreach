@@ -1,0 +1,27 @@
+{
+  "setup_complete": false,
+  "candidate": {
+    "first_name": "",
+    "full_name": "",
+    "email": "",
+    "university": "",
+    "degree": "",
+    "grad_date": "",
+    "github": "",
+    "linkedin": "",
+    "portfolio": "",
+    "location": "",
+    "us_citizen": false,
+    "primary_stack_note": ""
+  },
+  "google": {
+    "primary_spreadsheet_id": "",
+    "sender_email": "",
+    "timezone": "America/Los_Angeles",
+    "overflow_spreadsheet_id": "",
+    "overflow_sender_email": ""
+  },
+  "apollo": {
+    "alumni_school_id": ""
+  }
+}

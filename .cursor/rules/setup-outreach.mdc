@@ -1,0 +1,20 @@
+---
+description: First-time outreach system setup — run when outreach.config.json is missing or setup_complete is false
+globs:
+  - "SETUP.md"
+  - "outreach.config.example.json"
+  - "outreach.config.json"
+alwaysApply: true
+---
+
+# Setup gate
+
+Before any JD discovery, spec authoring, export, or import:
+
+1. Check whether `outreach.config.json` exists and `setup_complete` is `true`.
+2. If not, read and execute [`SETUP.md`](SETUP.md) **in order** (Phases A → D).
+3. Ask the user for browser/OAuth steps you cannot run headlessly.
+4. Run `node scripts/validate-setup.mjs` — must exit 0 before campaign work.
+5. Only then follow [`AGENTS.md`](AGENTS.md) campaign workflow.
+
+Do not skip the self-test in SETUP.md Phase D.

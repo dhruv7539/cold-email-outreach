@@ -1,0 +1,17 @@
+.env
+outreach.config.json
+master_data.md
+COLD_EMAIL_PROOF_BANK.md
+CAMPAIGN_LOG.md
+client_secret_*.json
+!client_secret.example.json
+output/
+runs/*
+!runs/example-*.spec.mjs
+applications/
+.clasp.json
+apps-script/**/.clasp*/
+.playwright-cli/
+scheduler/
+*.zip
+tmp-*.js
