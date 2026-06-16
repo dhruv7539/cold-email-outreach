@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -47,7 +48,7 @@ export function loadOutreachConfigSync(options = {}) {
   const configPath = options.configPath || OUTREACH_CONFIG_PATH;
   let raw;
   try {
-    raw = require("node:fs").readFileSync(configPath, "utf8");
+    raw = readFileSync(configPath, "utf8");
   } catch (error) {
     if (error && error.code === "ENOENT") {
       throw new Error(

@@ -34,7 +34,7 @@
 //                                                       rule-based fallback
 
 import {
-  getOutreachSpreadsheetId(),
+  getOutreachSpreadsheetId,
   OUTREACH_QUEUE_HEADERS,
   OUTREACH_SHEET_NAMES,
 } from "./config.mjs";

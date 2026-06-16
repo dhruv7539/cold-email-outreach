@@ -20,7 +20,7 @@
 
 import { getSheetsAccessToken, getSheetValues } from "./sheets-api.mjs";
 import {
-  getOutreachSpreadsheetId(),
+  getOutreachSpreadsheetId,
   OUTREACH_QUEUE_HEADERS,
   OUTREACH_SHEET_NAMES,
 } from "./config.mjs";

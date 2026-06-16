@@ -11,7 +11,7 @@
 
 import fs from "node:fs/promises";
 import {
-  getOutreachSpreadsheetId(),
+  getOutreachSpreadsheetId,
   OUTREACH_QUEUE_HEADERS,
 } from "./config.mjs";
 import {

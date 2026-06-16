@@ -33,7 +33,7 @@
 //   node scripts/generate-analytics.mjs --min-sent 3     # skip rows with <3 sends (default 1)
 
 import {
-  getOutreachSpreadsheetId(),
+  getOutreachSpreadsheetId,
   OUTREACH_QUEUE_HEADERS,
   OUTREACH_SHEET_NAMES,
 } from "./config.mjs";
