@@ -102,6 +102,8 @@ const OUTREACH_DEFAULT_SETTINGS = [
   ["warmup_start_date", "", "Optional YYYY-MM-DD. When set, ramps the daily cap base*factor^day (clamped to max_send_per_day). Leave blank to disable (established accounts)."],
   ["warmup_base_per_day", "40", "Day-0 daily cap when warm-up is active."],
   ["warmup_factor", "2", "Daily multiplier during warm-up (2 = double each day)."],
+  ["api_base_url", "", "Hosted product only: base URL of the hub, e.g. https://your-app.vercel.app. Leave blank for local/CLI use."],
+  ["pairing_token", "", "Hosted product only: paste the token from the web app. Treat it like a password."],
 ];
 
 const OUTREACH_STEP_CONFIG = {
@@ -150,15 +152,22 @@ const OUTREACH_BUSINESS_ENVELOPE_ZONES = [
 const OUTREACH_PACING_PROP_KEY = "SEND_PACING";
 
 function onOpen() {
-  SpreadsheetApp.getUi()
+  var menu = SpreadsheetApp.getUi()
     .createMenu("Outreach Sequencer")
     .addItem("Setup Sheet", "setupOutreachSheet")
     .addItem("Install Trigger", "installOutreachTrigger")
     .addItem("Remove Trigger", "removeOutreachTriggers")
     .addItem("Check Replies Now", "checkRepliesAndBounces")
     .addItem("Archive Terminal Rows", "archiveTerminalRowsNow")
-    .addItem("Reschedule Overdue (Help)", "showRescheduleOverdueHelp")
-    .addToUi();
+    .addItem("Reschedule Overdue (Help)", "showRescheduleOverdueHelp");
+
+  // Present only in the hosted-product bundle, which ships Bridge.gs alongside
+  // this file. Standalone/CLI installs are unaffected (the function is absent).
+  if (typeof addHubMenuItems_ === "function") {
+    menu = addHubMenuItems_(menu);
+  }
+
+  menu.addToUi();
 }
 
 function showRescheduleOverdueHelp() {
