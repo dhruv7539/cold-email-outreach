@@ -16,6 +16,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import {
   getSharedPoolId,
   getAccessToken,
@@ -114,6 +115,27 @@ async function main() {
   // Sanity read.
   const sample = await getCompanyContacts(accessToken, spreadsheetId, { company: "__none__" });
   console.log(`   pool reachable (current query returned ${sample.length} rows).`);
+
+  // Auto-backfill: seed the pool with this person's entire history — every
+  // enriched contact plus the reply/bounce outcomes from their sheet. Skip with
+  // --no-backfill. Run as child processes so their exits don't abort setup.
+  if (args["no-backfill"]) {
+    console.log("\n(skipping backfill — --no-backfill)");
+  } else {
+    const runStep = (script, label) => {
+      console.log(`\n4) ${label} ...`);
+      const r = spawnSync(process.execPath, [path.join(__dirname, script)], {
+        stdio: "inherit",
+        cwd: repoRoot,
+      });
+      if (r.status !== 0) {
+        console.error(`   (${script} exited ${r.status}; you can re-run it later)`);
+      }
+    };
+    runStep("pool-backfill.mjs", "backfilling your enriched contacts");
+    runStep("pool-sync-outcomes.mjs", "syncing your reply + bounce outcomes");
+  }
+
   console.log("\nDone. The shared pool is set up. Campaigns will use it automatically.");
 }
 

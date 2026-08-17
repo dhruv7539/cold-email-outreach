@@ -39,10 +39,35 @@ node scripts/pool-push.mjs --enrich output/enrich/<slug>.json --domain company.c
    Skip this when the enrich file came from the pool (it self-detects
    `source=shared_pool` and no-ops).
 
+3. **After replies get classified / after shipping** (any time outcomes change),
+   contribute reply + bounce signals so everyone benefits:
+
+```bash
+node scripts/pool-sync-outcomes.mjs
+```
+
+   This reads YOUR sheet (Queue/Archive/Blacklist/Replies) and writes back only
+   the anonymous gist: a reply category (positive/referral/negative/auto_reply/
+   unclear) and a `do_not_send` flag for bounced/opted-out emails. Reply text is
+   never shared. A good habit: run it right after `classify-replies.mjs`.
+
+## Automatic behaviors (don't fight these)
+
+- **Do-not-send suppression:** `pool-lookup` drops any contact another friend
+  saw bounce or opt out, so you never draft to a dead address. It reports how
+  many it suppressed.
+- **Reply gist:** pooled contacts that previously got a reply carry
+  `pool_reply_status` in the enrich file (and print `[reply seen: ...]`).
+  Prioritize a contact with a `positive` gist when selecting/drafting.
+- **Backfill on setup:** `setup-shared-pool.mjs` auto-runs `pool-backfill.mjs`
+  (all past `output/enrich/*.json`) and `pool-sync-outcomes.mjs`, so joining the
+  pool seeds a person's entire history. Re-runnable; pass `--no-backfill` to skip.
+
 ## Rules
 
 - The pool is ANONYMOUS: never add, store, or display any field identifying who
-  contributed a contact. The scripts already omit this — don't add it.
+  contributed a contact OR who observed an outcome. The scripts already omit
+  this — don't add it. The shared reply signal is a category only, never text.
 - Cached emails can be stale; that's fine — the exporter re-verifies and drops
   bad addresses at export time. Use `--max-age-days N` on lookup to ignore very
   old rows if desired.

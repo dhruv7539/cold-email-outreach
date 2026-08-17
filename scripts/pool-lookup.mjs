@@ -60,14 +60,27 @@ async function main() {
   }
 
   const accessToken = await getAccessToken(args);
-  const records = await getCompanyContacts(accessToken, spreadsheetId, {
+  const allRecords = await getCompanyContacts(accessToken, spreadsheetId, {
     domain,
     company,
     maxAgeDays: args["max-age-days"],
   });
 
-  if (!records.length) {
+  if (!allRecords.length) {
     console.log(`pool MISS: ${domain || company} not in shared pool -> run Apollo discovery/enrich`);
+    process.exit(3);
+  }
+
+  // Never draft to an address a friend already saw bounce / opt out.
+  const suppressed = allRecords.filter((r) => r.do_not_send);
+  const records = allRecords.filter((r) => !r.do_not_send);
+  if (suppressed.length) {
+    console.log(`suppressed ${suppressed.length} do-not-send contact(s) (bounced/opted-out) for ${domain || company}.`);
+  }
+  if (!records.length) {
+    console.log(
+      `pool has ${allRecords.length} contact(s) for ${domain || company} but all are do-not-send -> run Apollo discovery/enrich`
+    );
     process.exit(3);
   }
 
@@ -78,7 +91,10 @@ async function main() {
     id: r.person.id,
     ok: true,
     cached: true,
-    person: r.person,
+    // Surface the anonymous reply gist so the drafter can prioritize contacts a
+    // friend already had a positive exchange with (pool_reply_status only —
+    // never the reply text).
+    person: r.reply_status ? { ...r.person, pool_reply_status: r.reply_status } : r.person,
   }));
   const out = {
     requested: results.length,
@@ -99,8 +115,9 @@ async function main() {
     const p = r.person;
     const age = ageDays(r.added_at);
     const loc = [p.city, p.state, p.country].filter(Boolean).join(", ");
+    const reply = r.reply_status ? `  [reply seen: ${r.reply_status}]` : "";
     console.log(
-      `  ${p.name || "?"} | ${p.title || "?"} | ${p.email || "?"} (${p.email_status || "?"}) | ${loc}${age !== null ? ` | ${age}d old` : ""}`
+      `  ${p.name || "?"} | ${p.title || "?"} | ${p.email || "?"} (${p.email_status || "?"}) | ${loc}${age !== null ? ` | ${age}d old` : ""}${reply}`
     );
   }
   console.log(
