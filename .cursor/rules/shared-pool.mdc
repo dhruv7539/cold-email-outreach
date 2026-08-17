@@ -1,0 +1,50 @@
+---
+description: Shared contact pool — check the shared Google Sheet before spending Apollo credits, and push new contacts back after enriching. Anonymous, cross-friend Apollo cache.
+alwaysApply: true
+---
+
+# Shared contact pool (Apollo credit saver)
+
+A shared Google Sheet caches enriched contacts across everyone using this
+system. Before spending Apollo credits on a company, check the pool; after
+enriching, push new contacts back so the next person skips Apollo.
+
+**If the pool is not configured** (`google.shared_pool_spreadsheet_id` unset
+and no `OUTREACH_SHARED_POOL_SPREADSHEET_ID` env), the commands print a skip
+message and exit — do nothing special, just proceed with normal Apollo. Do NOT
+treat that as an error.
+
+## In every campaign
+
+1. **Before Apollo discovery/enrich**, look up the company:
+
+```bash
+node scripts/pool-lookup.mjs --domain company.com --company "Company" --slug <slug>
+```
+
+   - Exit 0 = HIT: it wrote `output/enrich/<slug>.json` in the normal enrich
+     shape. Reuse those contacts and SKIP Apollo search + enrich. Policy is
+     SUPPLEMENT: if the pooled contacts don't cover the team the JD needs, run
+     the normal Apollo buckets only for the gap, then push (step 2).
+   - Exit 3 = MISS: run the normal Apollo discovery + enrich as usual.
+   - Exit 2 = pool not configured: proceed normally, no pool.
+
+2. **After a fresh Apollo enrich** (i.e. any time you spent credits), push the
+   results so others benefit:
+
+```bash
+node scripts/pool-push.mjs --enrich output/enrich/<slug>.json --domain company.com --company "Company"
+```
+
+   Skip this when the enrich file came from the pool (it self-detects
+   `source=shared_pool` and no-ops).
+
+## Rules
+
+- The pool is ANONYMOUS: never add, store, or display any field identifying who
+  contributed a contact. The scripts already omit this — don't add it.
+- Cached emails can be stale; that's fine — the exporter re-verifies and drops
+  bad addresses at export time. Use `--max-age-days N` on lookup to ignore very
+  old rows if desired.
+- One-time setup per person: `node scripts/setup-shared-pool.mjs --id <SHEET_ID>`
+  (see `SETUP_SHARED_POOL.md`).
