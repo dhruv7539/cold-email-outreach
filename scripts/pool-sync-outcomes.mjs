@@ -24,6 +24,7 @@ import {
   getSharedPoolId,
   getAccessToken,
   applyOutcomes,
+  weekStart,
 } from "./shared-pool.mjs";
 import { getSheetValues } from "./sheets-api.mjs";
 
@@ -102,6 +103,9 @@ function addSignal(map, email, sig) {
   if (sig.reply_status) cur.reply_status = sig.reply_status; // applyOutcomes ranks
   if (sig.do_not_send) cur.do_not_send = true;
   if (sig.dns_reason && !cur.dns_reason) cur.dns_reason = sig.dns_reason;
+  if (sig.sent_week) {
+    cur.sent_weeks = [...new Set([...(cur.sent_weeks ?? []), sig.sent_week])];
+  }
   map.set(em, cur);
 }
 
@@ -122,19 +126,32 @@ async function main() {
 
   // signals keyed by email; applyOutcomes does the highest-rank / sticky merge.
   const signals = new Map();
-  const tally = { positive: 0, referral: 0, negative: 0, auto_reply: 0, unclear: 0, do_not_send: 0 };
+  const tally = { positive: 0, referral: 0, negative: 0, auto_reply: 0, unclear: 0, do_not_send: 0, sent: 0 };
 
-  // 1. Queue + Archive: `outcome` (reply category) and `status` == bounced.
+  // 1. Queue + Archive: `outcome` (reply category), `status` == bounced, and
+  //    the week the first email actually went out (collision avoidance).
   for (const tab of ["Queue", "Archive"]) {
     const t = await readTab(accessToken, primaryId, tab);
     if (!t) continue;
     const emailCol = t.col("recipient_email");
     const outcomeCol = t.col("outcome");
     const statusCol = t.col("status");
+    const sentCol = t.col("main_sent_at");
+    const lastSentCol = t.col("last_sent_at");
     if (emailCol < 0) continue;
     for (const row of t.rows) {
       const email = row[emailCol];
       if (!email) continue;
+      // Only the initial send counts as a "wave" — follow-ups are the same touch.
+      const sentRaw =
+        (sentCol >= 0 ? row[sentCol] : "") || (lastSentCol >= 0 ? row[lastSentCol] : "");
+      if (sentRaw) {
+        const wk = weekStart(sentRaw);
+        if (wk) {
+          addSignal(signals, email, { sent_week: wk });
+          tally.sent += 1;
+        }
+      }
       if (outcomeCol >= 0) {
         const oc = String(row[outcomeCol] || "").trim().toLowerCase();
         const rs = REPLY_FROM_OUTCOME[oc];
@@ -199,8 +216,9 @@ async function main() {
   const res = await applyOutcomes(accessToken, poolId, outcomes);
   const dns = outcomes.filter((o) => o.do_not_send).length;
   const replies = outcomes.filter((o) => o.reply_status).length;
+  const touched = outcomes.filter((o) => o.sent_weeks?.length).length;
   console.log(
-    `synced outcomes for ${outcomes.length} email(s): ${replies} with a reply, ${dns} do-not-send.`
+    `synced outcomes for ${outcomes.length} email(s): ${replies} with a reply, ${dns} do-not-send, ${touched} with send history.`
   );
   console.log(`  pool rows updated: ${res.updated}, new signal-only rows added: ${res.added}`);
 }

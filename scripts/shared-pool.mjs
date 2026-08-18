@@ -39,6 +39,13 @@ export const POOL_TAB = "Contacts";
 //   dns_reason          — short, non-identifying reason (e.g. "bounce",
 //                         "opt_out"). No sender identity, no message content.
 //   outcome_updated_at  — ISO timestamp of the last outcome merge.
+//   sent_weeks          — collision avoidance. Comma-separated list of the
+//                         Monday-dates of weeks in which SOMEONE in the pool
+//                         emailed this contact. Deliberately bucketed to the
+//                         week so a batch of rows can't be fingerprinted back
+//                         to one person's campaign, and stored as a set so
+//                         re-syncing is idempotent. Count = outreach waves,
+//                         max = most recent touch.
 export const SHARED_POOL_HEADERS = [
   "domain",
   "company",
@@ -58,6 +65,22 @@ export const SHARED_POOL_HEADERS = [
   "do_not_send",
   "dns_reason",
   "outcome_updated_at",
+  "sent_weeks",
+];
+
+// Briefs live in their own tab, keyed by contact email. A brief is RESEARCH
+// ABOUT THE CONTACT only — the writer's candidate-specific pitch sections are
+// stripped before sharing (see pool-push-briefs.mjs).
+export const BRIEFS_TAB = "Briefs";
+export const BRIEF_HEADERS = [
+  "email",
+  "apollo_id",
+  "domain",
+  "company",
+  "name",
+  "title",
+  "brief_md",
+  "updated_at",
 ];
 
 // Reply signals, ranked low -> high. When merging outcomes from many friends we
@@ -85,8 +108,35 @@ export function colLetter(n) {
 
 const LAST_COL = colLetter(SHARED_POOL_HEADERS.length);
 const OUTCOME_START = SHARED_POOL_HEADERS.indexOf("reply_status"); // 0-based
+const OUTCOME_WIDTH = SHARED_POOL_HEADERS.length - OUTCOME_START;
 const OUTCOME_FIRST_COL = colLetter(OUTCOME_START + 1); // "O"
-const OUTCOME_LAST_COL = LAST_COL; // "R"
+const OUTCOME_LAST_COL = LAST_COL; // last outcome column
+const BRIEF_LAST_COL = colLetter(BRIEF_HEADERS.length);
+
+// Monday (UTC) of the week containing `d`, as YYYY-MM-DD. Used to bucket send
+// dates so individual campaigns can't be fingerprinted.
+export function weekStart(d) {
+  const date = d instanceof Date ? d : new Date(d);
+  if (!Number.isFinite(date.getTime())) return "";
+  const offset = (date.getUTCDay() + 6) % 7; // Mon=0 ... Sun=6
+  const mon = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  mon.setUTCDate(mon.getUTCDate() - offset);
+  return mon.toISOString().slice(0, 10);
+}
+
+function parseWeeks(cell) {
+  return String(cell || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+// Keep the set bounded so the cell can't grow without limit.
+const MAX_WEEKS = 12;
+function mergeWeeks(existing, incoming) {
+  const set = new Set([...parseWeeks(existing), ...(incoming ?? []).filter(Boolean)]);
+  return [...set].sort().slice(-MAX_WEEKS).join(",");
+}
 
 // --- config (self-contained; do NOT import config.mjs) ---------------------
 
@@ -141,6 +191,7 @@ function toRow(person, { domain, company }) {
     person.do_not_send ?? "",
     person.dns_reason ?? "",
     "",
+    "",
   ];
 }
 
@@ -175,6 +226,7 @@ function rowToRecord(row) {
     do_not_send: String(get("do_not_send") || "").toLowerCase() === "yes",
     dns_reason: get("dns_reason") || "",
     outcome_updated_at: get("outcome_updated_at") || "",
+    sent_weeks: parseWeeks(get("sent_weeks")),
   };
 }
 
@@ -229,28 +281,32 @@ async function addTab(accessToken, spreadsheetId, title) {
   return res.json();
 }
 
-export async function ensurePoolTab(accessToken, spreadsheetId) {
+// Create `tab` if absent and make sure row 1 matches `headers`. Rewriting the
+// header row is also how an older, narrower pool MIGRATES to a newer schema:
+// existing rows keep their data and simply gain blank trailing cells.
+async function ensureTab(accessToken, spreadsheetId, tab, headers) {
   const tabs = await getSpreadsheetTabs(accessToken, spreadsheetId);
-  const created = !tabs.includes(POOL_TAB);
+  const created = !tabs.includes(tab);
   if (created) {
-    await addTab(accessToken, spreadsheetId, POOL_TAB);
+    await addTab(accessToken, spreadsheetId, tab);
   }
-  // Ensure header row is present/correct (idempotent). This also MIGRATES an
-  // older 14-column pool up to the current schema by rewriting the header row;
-  // existing contact rows keep their data and simply gain blank outcome cells.
-  const existing = await getSheetValues(
-    accessToken,
-    spreadsheetId,
-    `${POOL_TAB}!A1:${LAST_COL}1`
-  );
+  const lastCol = colLetter(headers.length);
+  const existing = await getSheetValues(accessToken, spreadsheetId, `${tab}!A1:${lastCol}1`);
   const headerRow = existing?.values?.[0] ?? [];
   const headerOk =
-    headerRow.length === SHARED_POOL_HEADERS.length &&
-    SHARED_POOL_HEADERS.every((h, i) => headerRow[i] === h);
+    headerRow.length === headers.length && headers.every((h, i) => headerRow[i] === h);
   if (!headerOk) {
-    await updateSheetValues(accessToken, spreadsheetId, `${POOL_TAB}!A1`, [SHARED_POOL_HEADERS]);
+    await updateSheetValues(accessToken, spreadsheetId, `${tab}!A1`, [headers]);
   }
   return { created, headerWritten: !headerOk };
+}
+
+export async function ensurePoolTab(accessToken, spreadsheetId) {
+  return ensureTab(accessToken, spreadsheetId, POOL_TAB, SHARED_POOL_HEADERS);
+}
+
+export async function ensureBriefsTab(accessToken, spreadsheetId) {
+  return ensureTab(accessToken, spreadsheetId, BRIEFS_TAB, BRIEF_HEADERS);
 }
 
 async function readAllRecords(accessToken, spreadsheetId) {
@@ -350,15 +406,13 @@ export async function applyOutcomes(accessToken, spreadsheetId, outcomes) {
   const dnsIdx = SHARED_POOL_HEADERS.indexOf("do_not_send") - OUTCOME_START;
   const reasonIdx = SHARED_POOL_HEADERS.indexOf("dns_reason") - OUTCOME_START;
   const updIdx = SHARED_POOL_HEADERS.indexOf("outcome_updated_at") - OUTCOME_START;
+  const weeksIdx = SHARED_POOL_HEADERS.indexOf("sent_weeks") - OUTCOME_START;
 
-  // Seed the outcome matrix (4 cols) from the current sheet values so we never
-  // clobber signals already recorded by someone else.
-  const matrix = data.map((row) => [
-    row[OUTCOME_START] ?? "",
-    row[OUTCOME_START + 1] ?? "",
-    row[OUTCOME_START + 2] ?? "",
-    row[OUTCOME_START + 3] ?? "",
-  ]);
+  // Seed the outcome matrix from the current sheet values so we never clobber
+  // signals already recorded by someone else.
+  const matrix = data.map((row) =>
+    Array.from({ length: OUTCOME_WIDTH }, (_, k) => row[OUTCOME_START + k] ?? "")
+  );
 
   const emailToRows = new Map();
   data.forEach((row, i) => {
@@ -386,6 +440,13 @@ export async function applyOutcomes(accessToken, spreadsheetId, outcomes) {
       cur[reasonIdx] = o.dns_reason;
       changed = true;
     }
+    if (o.sent_weeks?.length) {
+      const merged = mergeWeeks(cur[weeksIdx], o.sent_weeks);
+      if (merged !== cur[weeksIdx]) {
+        cur[weeksIdx] = merged;
+        changed = true;
+      }
+    }
     if (changed) cur[updIdx] = now;
     return changed;
   };
@@ -397,7 +458,7 @@ export async function applyOutcomes(accessToken, spreadsheetId, outcomes) {
     if (rowIdxs && rowIdxs.length) {
       for (const i of rowIdxs) if (mergeInto(matrix[i], o)) updated += 1;
     } else {
-      const cur = missing.get(em) ?? ["", "", "", ""];
+      const cur = missing.get(em) ?? new Array(OUTCOME_WIDTH).fill("");
       mergeInto(cur, o);
       missing.set(em, cur);
     }
@@ -422,10 +483,8 @@ export async function applyOutcomes(accessToken, spreadsheetId, outcomes) {
     row[emailIdx] = em;
     row[SHARED_POOL_HEADERS.indexOf("employment_json")] = "[]";
     row[SHARED_POOL_HEADERS.indexOf("added_at")] = now;
-    row[OUTCOME_START] = cur[rIdx];
-    row[OUTCOME_START + 1] = cur[dnsIdx];
-    row[OUTCOME_START + 2] = cur[reasonIdx];
-    row[OUTCOME_START + 3] = now;
+    for (let k = 0; k < OUTCOME_WIDTH; k += 1) row[OUTCOME_START + k] = cur[k];
+    row[OUTCOME_START + updIdx] = now;
     newRows.push(row);
   }
   if (newRows.length) {
@@ -433,4 +492,115 @@ export async function applyOutcomes(accessToken, spreadsheetId, outcomes) {
   }
 
   return { updated, added: newRows.length };
+}
+
+// --- shared contact briefs --------------------------------------------------
+
+async function readBriefRows(accessToken, spreadsheetId) {
+  let res;
+  try {
+    res = await getSheetValues(accessToken, spreadsheetId, `${BRIEFS_TAB}!A:${BRIEF_LAST_COL}`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/unable to parse range/i.test(msg) || /not found/i.test(msg)) return [];
+    throw err;
+  }
+  const rows = res?.values ?? [];
+  return rows.length > 1 ? rows.slice(1) : [];
+}
+
+function briefRowToRecord(row) {
+  const get = (name) => row[BRIEF_HEADERS.indexOf(name)] ?? "";
+  return {
+    email: String(get("email")).trim().toLowerCase(),
+    apollo_id: get("apollo_id"),
+    domain: get("domain"),
+    company: get("company"),
+    name: get("name"),
+    title: get("title"),
+    brief_md: get("brief_md"),
+    updated_at: get("updated_at"),
+  };
+}
+
+// Fetch pooled briefs for a set of emails -> Map(email -> record).
+export async function getBriefsForEmails(accessToken, spreadsheetId, emails) {
+  const want = new Set(emails.map((e) => String(e || "").trim().toLowerCase()).filter(Boolean));
+  if (!want.size) return new Map();
+  const out = new Map();
+  for (const row of await readBriefRows(accessToken, spreadsheetId)) {
+    const rec = briefRowToRecord(row);
+    if (!rec.email || !want.has(rec.email) || !rec.brief_md) continue;
+    if (!out.has(rec.email)) out.set(rec.email, rec);
+  }
+  return out;
+}
+
+// Upsert briefs (keyed by email). Existing briefs are kept unless `force`, so a
+// re-run never churns someone else's better research.
+export async function putBriefs(accessToken, spreadsheetId, briefs, { force = false } = {}) {
+  await ensureBriefsTab(accessToken, spreadsheetId);
+  const rows = await readBriefRows(accessToken, spreadsheetId);
+  const emailIdx = BRIEF_HEADERS.indexOf("email");
+  const rowByEmail = new Map();
+  rows.forEach((row, i) => {
+    const em = String(row[emailIdx] ?? "").trim().toLowerCase();
+    if (em && !rowByEmail.has(em)) rowByEmail.set(em, i);
+  });
+
+  const now = new Date().toISOString();
+  const toAppend = [];
+  const seen = new Set();
+  let replaced = 0;
+  let skipped = 0;
+
+  for (const b of briefs) {
+    const em = String(b.email || "").trim().toLowerCase();
+    if (!em || !b.brief_md) {
+      skipped += 1;
+      continue;
+    }
+    if (seen.has(em)) {
+      skipped += 1;
+      continue;
+    }
+    seen.add(em);
+    const row = new Array(BRIEF_HEADERS.length).fill("");
+    const set = (name, v) => {
+      row[BRIEF_HEADERS.indexOf(name)] = v ?? "";
+    };
+    set("email", em);
+    set("apollo_id", b.apollo_id);
+    set("domain", normDomain(b.domain || em.split("@")[1] || ""));
+    set("company", b.company);
+    set("name", b.name);
+    set("title", b.title);
+    set("brief_md", b.brief_md);
+    set("updated_at", now);
+
+    const existingIdx = rowByEmail.get(em);
+    if (existingIdx === undefined) {
+      toAppend.push(row);
+    } else if (force) {
+      await updateSheetValues(
+        accessToken,
+        spreadsheetId,
+        `${BRIEFS_TAB}!A${existingIdx + 2}:${BRIEF_LAST_COL}${existingIdx + 2}`,
+        [row]
+      );
+      replaced += 1;
+    } else {
+      skipped += 1;
+    }
+  }
+
+  if (toAppend.length) {
+    await appendSheetValues(
+      accessToken,
+      spreadsheetId,
+      `${BRIEFS_TAB}!A:${BRIEF_LAST_COL}`,
+      toAppend
+    );
+  }
+  return { pushed: toAppend.length, replaced, skipped };
 }

@@ -20,7 +20,10 @@ import {
   getSharedPoolId,
   getAccessToken,
   getCompanyContacts,
+  getBriefsForEmails,
 } from "./shared-pool.mjs";
+
+const DEFAULT_COOLDOWN_DAYS = 14;
 
 function parseArgs(argv) {
   const args = {};
@@ -42,6 +45,29 @@ function ageDays(iso) {
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return null;
   return Math.floor((Date.now() - t) / (24 * 60 * 60 * 1000));
+}
+
+// Send dates are stored bucketed to the Monday of their week, so a send could
+// have happened up to 6 days AFTER the stored date. Measure from the end of the
+// week to stay conservative — better to over-warn than to double-tap a contact.
+function daysSinceWeek(week) {
+  const t = Date.parse(`${week}T00:00:00Z`);
+  if (!Number.isFinite(t)) return null;
+  const endOfWeek = t + 6 * 24 * 60 * 60 * 1000;
+  return Math.max(0, Math.floor((Date.now() - endOfWeek) / (24 * 60 * 60 * 1000)));
+}
+
+function outreachInfo(rec) {
+  const weeks = rec.sent_weeks ?? [];
+  if (!weeks.length) return null;
+  const latest = weeks.slice().sort().at(-1);
+  return { daysAgo: daysSinceWeek(latest), waves: weeks.length };
+}
+
+function slugifyKey(name, email) {
+  const base = String(name || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  if (base) return base;
+  return String(email || "contact").split("@")[0].toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 
 async function main() {
@@ -73,10 +99,25 @@ async function main() {
 
   // Never draft to an address a friend already saw bounce / opt out.
   const suppressed = allRecords.filter((r) => r.do_not_send);
-  const records = allRecords.filter((r) => !r.do_not_send);
+  let records = allRecords.filter((r) => !r.do_not_send);
   if (suppressed.length) {
     console.log(`suppressed ${suppressed.length} do-not-send contact(s) (bounced/opted-out) for ${domain || company}.`);
   }
+
+  // Collision avoidance: someone in the pool may have emailed these contacts
+  // very recently. Two people hitting the same recruiter in the same fortnight
+  // reads as a spam wave and costs the whole group its reply rate.
+  const cooldownDays = Number(args["cooldown-days"]) > 0 ? Number(args["cooldown-days"]) : DEFAULT_COOLDOWN_DAYS;
+  const recent = records.filter((r) => {
+    const info = outreachInfo(r);
+    return info && info.daysAgo !== null && info.daysAgo <= cooldownDays;
+  });
+  if (recent.length && args["exclude-recent"]) {
+    const recentSet = new Set(recent.map((r) => r.person.email));
+    records = records.filter((r) => !recentSet.has(r.person.email));
+    console.log(`excluded ${recent.length} contact(s) emailed within the last ${cooldownDays}d (--exclude-recent).`);
+  }
+
   if (!records.length) {
     console.log(
       `pool has ${allRecords.length} contact(s) for ${domain || company} but all are do-not-send -> run Apollo discovery/enrich`
@@ -87,15 +128,19 @@ async function main() {
   const slug = args.slug || (domain ? domain.replace(/\./g, "-") : String(company).toLowerCase().replace(/\s+/g, "-"));
   const outPath = args.output || path.join("output", "enrich", `${slug}.json`);
 
-  const results = records.map((r) => ({
-    id: r.person.id,
-    ok: true,
-    cached: true,
+  const results = records.map((r) => {
+    const info = outreachInfo(r);
     // Surface the anonymous reply gist so the drafter can prioritize contacts a
     // friend already had a positive exchange with (pool_reply_status only —
-    // never the reply text).
-    person: r.reply_status ? { ...r.person, pool_reply_status: r.reply_status } : r.person,
-  }));
+    // never the reply text), plus how recently the group last touched them.
+    const person = { ...r.person };
+    if (r.reply_status) person.pool_reply_status = r.reply_status;
+    if (info) {
+      person.pool_last_outreach_days_ago = info.daysAgo;
+      person.pool_outreach_waves = info.waves;
+    }
+    return { id: r.person.id, ok: true, cached: true, person };
+  });
   const out = {
     requested: results.length,
     kept: results.length,
@@ -116,10 +161,45 @@ async function main() {
     const age = ageDays(r.added_at);
     const loc = [p.city, p.state, p.country].filter(Boolean).join(", ");
     const reply = r.reply_status ? `  [reply seen: ${r.reply_status}]` : "";
+    const info = outreachInfo(r);
+    const touch =
+      info && info.daysAgo !== null && info.daysAgo <= cooldownDays
+        ? `  [RECENT OUTREACH: ~${info.daysAgo}d ago, ${info.waves} wave(s)]`
+        : info
+          ? `  [last touched ~${info.daysAgo}d ago]`
+          : "";
     console.log(
-      `  ${p.name || "?"} | ${p.title || "?"} | ${p.email || "?"} (${p.email_status || "?"}) | ${loc}${age !== null ? ` | ${age}d old` : ""}${reply}`
+      `  ${p.name || "?"} | ${p.title || "?"} | ${p.email || "?"} (${p.email_status || "?"}) | ${loc}${age !== null ? ` | ${age}d old` : ""}${reply}${touch}`
     );
   }
+
+  if (recent.length && !args["exclude-recent"]) {
+    console.log(
+      `\nCOLLISION WARNING: ${recent.length} of these were emailed by someone in the pool within ${cooldownDays}d.` +
+        "\n  Prefer a different contact at this company, or wait out the cooldown. Re-run with --exclude-recent to drop them automatically."
+    );
+  }
+
+  // Materialize any shared briefs so the agent skips the research subagent.
+  if (!args["no-briefs"]) {
+    const emails = records.map((r) => r.person.email).filter(Boolean);
+    const briefs = await getBriefsForEmails(accessToken, spreadsheetId, emails);
+    if (briefs.size) {
+      const briefDir = path.join("output", "contact-briefs", slug);
+      await fs.mkdir(briefDir, { recursive: true });
+      for (const r of records) {
+        const b = briefs.get(String(r.person.email || "").toLowerCase());
+        if (!b) continue;
+        const file = path.join(briefDir, `${slugifyKey(r.person.name, r.person.email)}.md`);
+        await fs.writeFile(file, b.brief_md.endsWith("\n") ? b.brief_md : `${b.brief_md}\n`);
+      }
+      console.log(
+        `\nreused ${briefs.size} shared contact brief(s) -> ${path.join("output", "contact-briefs", slug)}/` +
+          "\n  Do NOT re-run brief subagents for those contacts."
+      );
+    }
+  }
+
   console.log(
     "\nSUPPLEMENT: if these don't cover the team you need, run the normal Apollo buckets and pool-push the new finds."
   );

@@ -40,16 +40,27 @@ node scripts/pool-push.mjs --enrich output/enrich/<slug>.json --domain company.c
    `source=shared_pool` and no-ops).
 
 3. **After replies get classified / after shipping** (any time outcomes change),
-   contribute reply + bounce signals so everyone benefits:
+   contribute reply + bounce + send signals so everyone benefits:
 
 ```bash
 node scripts/pool-sync-outcomes.mjs
 ```
 
    This reads YOUR sheet (Queue/Archive/Blacklist/Replies) and writes back only
-   the anonymous gist: a reply category (positive/referral/negative/auto_reply/
-   unclear) and a `do_not_send` flag for bounced/opted-out emails. Reply text is
-   never shared. A good habit: run it right after `classify-replies.mjs`.
+   anonymous signals: a reply category (positive/referral/negative/auto_reply/
+   unclear), a `do_not_send` flag for bounced/opted-out emails, and the WEEK
+   each contact was emailed (for collision avoidance). Reply text is never
+   shared. A good habit: run it right after `classify-replies.mjs`.
+
+4. **After writing new contact briefs**, share the research:
+
+```bash
+node scripts/pool-push-briefs.mjs --slug $SLUG
+```
+
+   Only contact research is shared — sections about proof selection / draft
+   guidance and any line naming you are stripped automatically. Never hand-edit
+   a brief into the pool to add pitch advice.
 
 ## Automatic behaviors (don't fight these)
 
@@ -59,9 +70,20 @@ node scripts/pool-sync-outcomes.mjs
 - **Reply gist:** pooled contacts that previously got a reply carry
   `pool_reply_status` in the enrich file (and print `[reply seen: ...]`).
   Prioritize a contact with a `positive` gist when selecting/drafting.
+- **Collision avoidance (IMPORTANT):** contacts emailed by anyone in the pool
+  within 14 days print `[RECENT OUTREACH: ~Nd ago]` and a COLLISION WARNING.
+  Two people hitting the same recruiter in the same fortnight reads as a spam
+  wave and costs the whole group its reply rate — pick a different contact at
+  that company, or use `--exclude-recent` to drop them. Only override when the
+  user explicitly wants that contact.
+- **Shared briefs:** on a hit, `pool-lookup` writes any pooled briefs into
+  `output/contact-briefs/<slug>/`. If a brief file already exists for a contact,
+  do NOT launch a brief subagent for them — read the file instead. Shared briefs
+  contain contact research only, so you still choose the proof and CTA yourself.
 - **Backfill on setup:** `setup-shared-pool.mjs` auto-runs `pool-backfill.mjs`
-  (all past `output/enrich/*.json`) and `pool-sync-outcomes.mjs`, so joining the
-  pool seeds a person's entire history. Re-runnable; pass `--no-backfill` to skip.
+  (all past `output/enrich/*.json`), `pool-sync-outcomes.mjs`, and
+  `pool-push-briefs.mjs`, so joining the pool seeds a person's entire history.
+  Re-runnable; pass `--no-backfill` to skip.
 
 ## Rules
 

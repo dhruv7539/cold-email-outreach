@@ -133,7 +133,8 @@ async function main() {
       }
     };
     runStep("pool-backfill.mjs", "backfilling your enriched contacts");
-    runStep("pool-sync-outcomes.mjs", "syncing your reply + bounce outcomes");
+    runStep("pool-sync-outcomes.mjs", "syncing your reply + bounce + send history");
+    runStep("pool-push-briefs.mjs", "sharing your contact briefs (research only)");
   }
 
   console.log("\nDone. The shared pool is set up. Campaigns will use it automatically.");

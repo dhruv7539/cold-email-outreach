@@ -10,6 +10,19 @@ gist (a category — positive / referral / negative / auto_reply / unclear —
 never the reply text), and if an email bounces or opts out it's flagged
 `do_not_send` so nobody wastes a send on it.
 
+Two more things ride along:
+
+- **Collision avoidance.** The pool remembers the *week* each contact was
+  emailed by someone in the group. If you look up a company and a contact was
+  hit in the last 14 days, you get a warning — because two people emailing the
+  same recruiter in the same fortnight reads as a spam wave and drags down
+  everyone's reply rate.
+- **Shared contact briefs.** The research subagent step is the slowest, most
+  expensive part of a campaign. Briefs are pooled and reused, so the second
+  person to target a company gets the research for free. Only *contact
+  research* is shared — the parts about which proof to lead with and how to
+  draft are stripped, since those are personal to whoever wrote them.
+
 It is **additive**: new files only, no changes to the rest of the system. It is
 **anonymous**: rows store contact data, a timestamp, and outcome categories —
 never who added a contact or who observed an outcome.
@@ -34,10 +47,11 @@ node scripts/setup-shared-pool.mjs --id <SHARED_SHEET_ID>
 
 It writes `google.shared_pool_spreadsheet_id` into your local (gitignored)
 `outreach.config.json`, verifies your Google login can read and write the
-sheet, creates the `Contacts` tab + header if they don't exist yet, and then
+sheet, creates the `Contacts` / `Briefs` tabs if they don't exist yet, and then
 **backfills your whole history**: every contact you've enriched
-(`output/enrich/*.json`) plus your reply/bounce outcomes. Idempotent — safe to
-re-run. Pass `--no-backfill` to skip the history seed.
+(`output/enrich/*.json`), your reply/bounce/send outcomes, and your contact
+briefs. Idempotent — safe to re-run. Pass `--no-backfill` to skip the history
+seed.
 
 Prefer to let Cursor do it? Paste this one line into a chat:
 
@@ -47,22 +61,27 @@ Prefer to let Cursor do it? Paste this one line into a chat:
 
 An always-apply Cursor rule (`.cursor/rules/shared-pool.mdc`) makes the agent:
 
-- check the pool **before** spending Apollo credits (and skip contacts other
-  friends saw bounce / opt out),
+- check the pool **before** spending Apollo credits (skipping contacts other
+  friends saw bounce / opt out, and warning about anyone emailed recently),
+- reuse pooled contact briefs instead of re-running research subagents,
 - push new contacts **after** enriching, and
 - contribute reply + bounce outcomes after replies are classified.
 
 So you just paste a JD as usual. Manually, the commands are:
 
 ```bash
-# before discovery — HIT writes output/enrich/<slug>.json and you skip Apollo
+# before discovery — HIT writes output/enrich/<slug>.json, materializes any
+# shared briefs, and warns about recently-contacted people
 node scripts/pool-lookup.mjs --domain company.com --company "Company" --slug <slug>
 
 # after a fresh Apollo enrich — share what you found
 node scripts/pool-push.mjs --enrich output/enrich/<slug>.json --domain company.com --company "Company"
 
-# after replies get classified — share the outcome gist + bounces (anonymous)
+# after replies get classified — share the outcome gist + bounces + send weeks
 node scripts/pool-sync-outcomes.mjs
+
+# after writing briefs — share the contact research (auto-sanitized)
+node scripts/pool-push-briefs.mjs --slug <slug>
 ```
 
 ## Policy and notes
@@ -74,10 +93,15 @@ node scripts/pool-sync-outcomes.mjs
   every recipient and drops bad ones at send-export time. `pool-lookup` also
   supports `--max-age-days N` to ignore very old rows.
 - **Anonymous within the group, not private.** Every member can read all
-  pooled contacts and outcomes (that's the point) and no row says who added a
-  contact or who received a reply/bounce. Only a reply *category* is shared,
-  never the message text. The Google Sheet's own revision history is a separate
-  surface visible only to the sheet owner.
+  pooled contacts, outcomes and briefs (that's the point) and no row says who
+  added a contact or who received a reply/bounce. Only a reply *category* is
+  shared, never the message text. Send dates are bucketed to the week so a
+  batch of rows can't be fingerprinted back to one person's campaign, and
+  briefs are stripped of pitch guidance and author names. The Google Sheet's
+  own revision history is a separate surface visible only to the sheet owner.
+- **Cooldown is advice, not a lock.** `pool-lookup` warns about contacts hit in
+  the last 14 days (`--cooldown-days N` to change, `--exclude-recent` to drop
+  them). It never silently blocks you from contacting someone.
 - **PII sharing is intentional.** Contact names/emails are shared among the
   friend group by design; only pool with people you trust.
 - **Not configured?** If you skip setup, the commands print a skip notice and
