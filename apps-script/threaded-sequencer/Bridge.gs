@@ -234,31 +234,73 @@ function hubIso_(value) {
 }
 
 // The first ~300 chars of the most recent inbound message on a row's thread.
-// Runs under the sheet owner's Gmail authorization (same scope Code.gs uses for
-// reply detection), so no Gmail access is ever exposed to the Hub.
+//
+// IMPORTANT: this uses the advanced Gmail service (Gmail.Users.Threads.get), the
+// same way Code.gs does, NOT GmailApp. GmailApp would force the broad restricted
+// `https://mail.google.com/` scope, which makes Google hard-block the unverified
+// script ("This app is blocked"). Staying on the advanced service keeps the
+// script on the narrow gmail.modify/gmail.send scopes the manifest declares, so
+// users get the normal bypassable "unverified app" consent screen instead.
 function hubReplySnippet_(row) {
   var threadId = String(row.gmail_thread_id || "").trim();
   if (!threadId) {
     return "";
   }
   try {
-    var thread = GmailApp.getThreadById(threadId);
-    if (!thread) {
-      return "";
-    }
+    var thread = Gmail.Users.Threads.get("me", threadId, { format: "full" });
+    var messages = (thread && thread.messages) || [];
     var sender = String(row.sender_email || "").trim().toLowerCase();
-    var messages = thread.getMessages();
+
     for (var i = messages.length - 1; i >= 0; i -= 1) {
-      var from = String(messages[i].getFrom() || "").toLowerCase();
+      var headers = (messages[i].payload && messages[i].payload.headers) || [];
+      var from = "";
+      for (var h = 0; h < headers.length; h += 1) {
+        if (String(headers[h].name || "").toLowerCase() === "from") {
+          from = String(headers[h].value || "").toLowerCase();
+          break;
+        }
+      }
       if (sender && from.indexOf(sender) !== -1) {
         continue;
       }
-      return String(messages[i].getPlainBody() || "").slice(0, 300);
+      return hubExtractPlainBody_(messages[i].payload).slice(0, 300);
     }
   } catch (err) {
     console.error("hubReplySnippet_ failed for thread " + threadId + ": " + err);
   }
   return "";
+}
+
+// Pulls the text/plain body out of a Gmail advanced-service message payload,
+// recursing through multipart containers. Returns "" when there is no plain part.
+function hubExtractPlainBody_(payload) {
+  if (!payload) {
+    return "";
+  }
+  if (payload.mimeType === "text/plain" && payload.body && payload.body.data) {
+    return hubDecodeB64_(payload.body.data);
+  }
+  var parts = payload.parts || [];
+  for (var i = 0; i < parts.length; i += 1) {
+    if (parts[i].mimeType === "text/plain" && parts[i].body && parts[i].body.data) {
+      return hubDecodeB64_(parts[i].body.data);
+    }
+  }
+  for (var j = 0; j < parts.length; j += 1) {
+    var nested = hubExtractPlainBody_(parts[j]);
+    if (nested) {
+      return nested;
+    }
+  }
+  return "";
+}
+
+function hubDecodeB64_(data) {
+  try {
+    return Utilities.newBlob(Utilities.base64DecodeWebSafe(data)).getDataAsString();
+  } catch (err) {
+    return "";
+  }
 }
 
 // Appends Hub rows to the Queue, skipping any job_id already present so repeated
