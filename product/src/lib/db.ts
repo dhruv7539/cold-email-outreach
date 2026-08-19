@@ -14,6 +14,12 @@ function getPool(): Pool {
     throw new Error("DATABASE_URL is not set.");
   }
   if (!globalThis.__outreachPool) {
+    // Sized for serverless (Vercel functions). Each warm instance keeps a small
+    // pool cached on globalThis; the real connection multiplexing is done by the
+    // provider's pooler (Neon's -pooler endpoint / Supabase pgBouncer), so DATABASE_URL
+    // should point at the POOLED connection string. Keeping max low here avoids a
+    // burst of cold instances exhausting the provider's connection ceiling.
+    const isServerless = Boolean(process.env.VERCEL);
     globalThis.__outreachPool = new Pool({
       connectionString: process.env.DATABASE_URL,
       // Managed Postgres (Neon/Supabase) requires TLS; allow the common
@@ -21,7 +27,9 @@ function getPool(): Pool {
       ssl: process.env.DATABASE_URL.includes("sslmode=disable")
         ? false
         : { rejectUnauthorized: false },
-      max: 10,
+      max: isServerless ? 3 : 10,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 10_000,
     });
   }
   return globalThis.__outreachPool;

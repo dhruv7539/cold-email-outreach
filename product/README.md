@@ -45,4 +45,10 @@ npm run migrate              # apply db/001_initial.sql
 npm run dev
 ```
 
+## Deploying
+
+See [`DEPLOY.md`](DEPLOY.md) for the full walkthrough: provisioning Neon (or
+Supabase) Postgres, running the migration, deploying to Vercel with the right
+env vars, and publishing the template Google Sheet users copy.
+
 See the repo root `AGENTS.md` for the original CLI system this is built on.
