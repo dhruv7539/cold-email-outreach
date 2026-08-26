@@ -8,8 +8,10 @@ name: Job Radar
 # want to re-align in November.
 on:
   schedule:
-    - cron: "0 9-23 * * *"
-    - cron: "0 0-2 * * *"
+    # Fire at :23 (not :00) — GitHub heavily throttles top-of-hour crons, so an
+    # off-peak minute fires far more reliably.
+    - cron: "23 9-23 * * *"
+    - cron: "23 0-2 * * *"
   workflow_dispatch: {}
 
 permissions:
