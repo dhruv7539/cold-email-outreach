@@ -1,0 +1,65 @@
+name: Job Radar
+
+# Runs the job radar in the cloud, independent of any laptop being awake.
+# GitHub cron is UTC and does NOT observe DST. The times below target US Eastern
+# during EDT (UTC-4): 09:00-23:00 UTC = 5am-7pm ET, 00:00-02:00 UTC = 8pm-10pm ET
+# => hourly 5am-10pm ET. In winter (EST, UTC-5) it shifts one hour earlier
+# (4am-9pm ET), which still covers the East Coast morning. Adjust here if you
+# want to re-align in November.
+on:
+  schedule:
+    - cron: "0 9-23 * * *"
+    - cron: "0 0-2 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+# Serialize runs so the seen.json commit-back never races itself.
+concurrency:
+  group: job-radar
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Write credentials & config from secrets
+        env:
+          GCP_OAUTH_KEYS: ${{ secrets.GCP_OAUTH_KEYS }}
+          GMAIL_CREDENTIALS: ${{ secrets.GMAIL_CREDENTIALS }}
+          SHEETS_CREDENTIALS: ${{ secrets.SHEETS_CREDENTIALS }}
+          OUTREACH_CONFIG: ${{ secrets.OUTREACH_CONFIG }}
+        run: |
+          mkdir -p "$HOME/.gmail-mcp"
+          printf '%s' "$GCP_OAUTH_KEYS"    > "$HOME/.gmail-mcp/gcp-oauth.keys.json"
+          printf '%s' "$GMAIL_CREDENTIALS" > "$HOME/.gmail-mcp/credentials.json"
+          printf '%s' "$SHEETS_CREDENTIALS" > "$HOME/.gmail-mcp/sheets.credentials.json"
+          printf '%s' "$OUTREACH_CONFIG"   > outreach.config.json
+
+      - name: Run job radar
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          APIFY_API_KEY_BACKUP: ${{ secrets.APIFY_API_KEY_BACKUP }}
+        run: node scripts/job-radar.mjs
+
+      - name: Persist seen store (dedup memory)
+        if: always()
+        run: |
+          git config user.name "job-radar-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -f output/jobs/seen.json 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "no seen.json change"
+          else
+            git commit -m "chore(job-radar): update seen.json [skip ci]"
+            git push origin HEAD:main || (git pull --rebase --autostash origin main && git push origin HEAD:main)
+          fi

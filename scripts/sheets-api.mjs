@@ -99,6 +99,26 @@ export async function batchUpdateSheetValues(
   );
 }
 
+// Spreadsheet-level batchUpdate (addSheet, grid changes, ...) — distinct from
+// the values:batchUpdate endpoint above.
+export async function batchUpdateSpreadsheet(accessToken, spreadsheetId, requests) {
+  return sheetsApiRequest(
+    accessToken,
+    `spreadsheets/${encodeURIComponent(spreadsheetId)}:batchUpdate`,
+    {
+      method: "POST",
+      body: { requests },
+    }
+  );
+}
+
+export async function getSpreadsheetMeta(accessToken, spreadsheetId) {
+  return sheetsApiRequest(
+    accessToken,
+    `spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=sheets(properties(sheetId,title,gridProperties(columnCount)))`
+  );
+}
+
 export async function clearSheetRange(accessToken, spreadsheetId, range) {
   return sheetsApiRequest(
     accessToken,
