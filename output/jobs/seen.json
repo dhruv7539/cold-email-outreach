@@ -1,11 +1,32 @@
 {
   "ids": {
     "career-2332005230": "2026-08-26T22:02:51.007Z",
-    "career-2332030434": "2026-08-26T22:02:51.007Z"
+    "career-2332030434": "2026-08-26T22:02:51.007Z",
+    "linkedin-4266777242": "2026-08-27T18:21:00.566Z",
+    "linkedin-4458309281": "2026-08-27T18:21:00.566Z",
+    "linkedin-4457298611": "2026-08-27T18:21:00.566Z",
+    "linkedin-4402359528": "2026-08-27T18:21:00.566Z",
+    "career-2333774997": "2026-08-27T18:21:00.566Z",
+    "career-2333614982": "2026-08-27T18:21:00.566Z",
+    "career-2333678023": "2026-08-27T18:21:00.566Z",
+    "career-2333764274": "2026-08-27T18:21:00.566Z",
+    "linkedin-4458637153": "2026-08-27T18:21:00.566Z",
+    "career-2333660725": "2026-08-27T18:21:00.566Z"
   },
   "keys": {
     "ontic::software engineer full stack::austin": "2026-08-26T22:02:51.007Z",
-    "oracle::application software engineer 1::nashville": "2026-08-26T22:02:51.007Z"
+    "oracle::application software engineer 1::nashville": "2026-08-26T22:02:51.007Z",
+    "boson ai::frontend engineer::santa clara": "2026-08-27T18:21:00.566Z",
+    "better u::frontend engineer::los angeles metropolitan area": "2026-08-27T18:21:00.566Z",
+    "oracle::software developer 3::austin": "2026-08-27T18:21:00.566Z",
+    "tiktok::backend software engineer global e commerce supply chain and logistics::seattle": "2026-08-27T18:21:00.566Z",
+    "onshore::software engineer::new york": "2026-08-27T18:21:00.566Z",
+    "global lending services::software developer::greenville": "2026-08-27T18:21:00.566Z",
+    "l3hhcm20::software engineer::holladay": "2026-08-27T18:21:00.566Z",
+    "inductive automation llc::software engineer::folsom": "2026-08-27T18:21:00.566Z",
+    "jack jill::software engineer 150k 250k at fiddle::san francisco": "2026-08-27T18:21:00.566Z",
+    "asm::software engineer early career fall 2026::phoenix": "2026-08-27T18:21:00.566Z"
   },
-  "lastRun": "2026-08-27T10:01:57.491Z"
+  "lastRun": "2026-08-27T18:21:00.566Z",
+  "lastSweepDate": "2026-08-27"
 }
