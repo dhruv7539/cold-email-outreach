@@ -524,14 +524,44 @@ async function main() {
   const doSheet = cfg.notify?.sheet !== false && args["no-sheet"] !== "true";
 
   const hour = hourInTz(tz);
-  const isMorning = hour === (cfg.morningSweepHour ?? 10);
-  const isSweep = (cfg.sweepHours || []).includes(hour);
-  const timeRange = args["time-range"] || (isMorning ? cfg.morningSweepRange || "12h" : cfg.hourlyRange || "1h");
+  const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
+
+  // Read the seen-store up front so scheduling can self-heal against dropped
+  // GitHub cron triggers (GitHub gives no scheduling SLA and silently skips
+  // many scheduled runs). Whenever a run fires after a gap, widen the fetch
+  // window to backfill everything missed; skip near-duplicate back-to-back
+  // fires so the redundant crons never multiply Apify cost.
+  const seenRaw = await readJson(seenPath, { ids: {}, keys: {} });
+  const seen = loadSeen(seenRaw);
+  const lastRunMs = seenRaw.lastRun ? Date.parse(seenRaw.lastRun) : NaN;
+  const gapMin = Number.isFinite(lastRunMs) ? (Date.now() - lastRunMs) / 60000 : Infinity;
+
+  const manualRun = !!(args.only || args["time-range"] || args.sweep === "true" || dryRun);
+  const minIntervalMin = cfg.minIntervalMinutes ?? 45;
+  if (!manualRun && gapMin < minIntervalMin) {
+    console.log(
+      `Job Radar | skip: last run ${Math.round(gapMin)}m ago (< ${minIntervalMin}m min interval) — redundant cron fire`
+    );
+    return;
+  }
+
+  // Backfill a wide window when we've missed runs (dropped triggers or the
+  // overnight gap) so nothing slips through; 1h only on a normal cadence.
+  const backfillGapMin = cfg.backfillGapMinutes ?? 120;
+  const needBackfill = gapMin > backfillGapMin;
+  const timeRange =
+    args["time-range"] || (needBackfill ? cfg.morningSweepRange || "24h" : cfg.hourlyRange || "1h");
   const limit = args.limit
     ? parseInt(args.limit, 10)
-    : isMorning
-      ? cfg.limitMorningSweep ?? 300
+    : needBackfill
+      ? cfg.limitMorningSweep ?? 150
       : cfg.limitPerRun ?? 120;
+
+  // Aggregators (LinkedIn/Handshake) run once per day — on the first fire at or
+  // after sweepAfterHour that has not already swept today. Tracking the date
+  // (not a fixed hour) makes the daily sweep resilient to a dropped trigger.
+  const sweepAfterHour = cfg.sweepAfterHour ?? (cfg.sweepHours?.[0] ?? 8);
+  const isSweep = seenRaw.lastSweepDate !== todayKey && hour >= sweepAfterHour;
 
   const stamp = new Intl.DateTimeFormat("en-US", {
     timeZone: tz, dateStyle: "medium", timeStyle: "short",
@@ -542,6 +572,8 @@ async function main() {
 
   const sourceIds = selectSources(cfg, args, isSweep);
   const withAggregators = sourceIds.some((id) => SOURCE_REGISTRY[id]?.kind === "aggregator");
+  // Mark the daily sweep as done today so a later fire doesn't re-run aggregators.
+  if (withAggregators) seenRaw.lastSweepDate = todayKey;
   const modeLabel = withAggregators
     ? `full sweep (${sourceIds.join(", ")})`
     : `career-site only (window ${timeRange})`;
@@ -648,8 +680,7 @@ async function main() {
   }
 
   // Dedup against seen store (by id AND canonical key) -> brand-new listings.
-  const seenRaw = await readJson(seenPath, { ids: {}, keys: {} });
-  const seen = loadSeen(seenRaw);
+  // (seenRaw/seen were loaded up front for the self-healing scheduler.)
   const fresh = eligible.filter((j) => !seen.ids[j.n.id] && !seen.keys[j.n._key]);
   fresh.sort((a, b) => b.score - a.score);
 

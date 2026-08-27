@@ -8,10 +8,13 @@ name: Job Radar
 # want to re-align in November.
 on:
   schedule:
-    # Fire at :23 (not :00) — GitHub heavily throttles top-of-hour crons, so an
-    # off-peak minute fires far more reliably.
-    - cron: "23 9-23 * * *"
-    - cron: "23 0-2 * * *"
+    # GitHub drops most scheduled triggers (no SLA), so fire ~3x/hour at
+    # off-peak minutes (not :00, which is the most throttled) to raise the odds
+    # of at least one run per hour. The radar's minIntervalMinutes guard makes
+    # redundant fires skip themselves, so this does NOT multiply Apify cost.
+    # 09:00-23:00 UTC = 5am-7pm ET; 00:00-02:00 UTC = 8pm-10pm ET (EDT).
+    - cron: "11,31,51 9-23 * * *"
+    - cron: "11,31,51 0-2 * * *"
   workflow_dispatch: {}
 
 permissions:
