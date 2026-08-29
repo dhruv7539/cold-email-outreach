@@ -39,7 +39,16 @@
     "career-2336071800": "2026-08-29T02:55:36.338Z",
     "career-2336079026": "2026-08-29T02:55:36.338Z",
     "career-2336719585": "2026-08-29T06:59:33.301Z",
-    "career-2336712958": "2026-08-29T06:59:33.301Z"
+    "career-2336712958": "2026-08-29T06:59:33.301Z",
+    "linkedin-4460573101": "2026-08-29T14:27:48.346Z",
+    "linkedin-4460549963": "2026-08-29T14:27:48.346Z",
+    "career-2337431687": "2026-08-29T14:27:48.346Z",
+    "linkedin-4460568271": "2026-08-29T14:27:48.346Z",
+    "linkedin-4460544083": "2026-08-29T14:27:48.346Z",
+    "linkedin-4459422999": "2026-08-29T14:27:48.346Z",
+    "linkedin-4460538540": "2026-08-29T14:27:48.346Z",
+    "linkedin-4460576054": "2026-08-29T14:27:48.346Z",
+    "linkedin-4460556989": "2026-08-29T14:27:48.346Z"
   },
   "keys": {
     "ontic::software engineer full stack::austin": "2026-08-26T22:02:51.007Z",
@@ -81,8 +90,17 @@
     "hewlett packard enterprise::software engineer graduate::roseville": "2026-08-29T02:55:36.338Z",
     "penn mutual::software engineer co op::philadelphia": "2026-08-29T02:55:36.338Z",
     "microsoft::software engineer intune::cambridge": "2026-08-29T06:59:33.301Z",
-    "qualcomm::wireless software engineer::santa clara": "2026-08-29T06:59:33.301Z"
+    "qualcomm::wireless software engineer::santa clara": "2026-08-29T06:59:33.301Z",
+    "fal::software engineer full stack serverless::san francisco": "2026-08-29T14:27:48.346Z",
+    "meeboss::front end software engineer::new york": "2026-08-29T14:27:48.346Z",
+    "pwc::ai engineer::birmingham": "2026-08-29T14:27:48.346Z",
+    "alex ai::full stack software engineer::san francisco": "2026-08-29T14:27:48.346Z",
+    "nous research::software engineer::united states": "2026-08-29T14:27:48.346Z",
+    "metantz::backend engineer::san jose": "2026-08-29T14:27:48.346Z",
+    "air apps::ai ml engineer::san francisco": "2026-08-29T14:27:48.346Z",
+    "fal::software engineer platform::san francisco": "2026-08-29T14:27:48.346Z",
+    "fal::software engineer distributed systems::san francisco": "2026-08-29T14:27:48.346Z"
   },
-  "lastRun": "2026-08-29T06:59:33.301Z",
-  "lastSweepDate": "2026-08-28"
+  "lastRun": "2026-08-29T14:27:48.346Z",
+  "lastSweepDate": "2026-08-29"
 }
