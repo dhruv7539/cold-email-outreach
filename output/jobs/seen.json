@@ -102,7 +102,14 @@
     "linkedin-4195750203": "2026-08-31T17:10:46.850Z",
     "linkedin-4461214776": "2026-08-31T17:10:46.850Z",
     "linkedin-4460010484": "2026-08-31T17:10:46.850Z",
-    "linkedin-4458888252": "2026-08-31T17:10:46.850Z"
+    "linkedin-4458888252": "2026-08-31T17:10:46.850Z",
+    "career-2339382039": "2026-08-31T21:53:25.671Z",
+    "career-2339419764": "2026-08-31T21:53:25.671Z",
+    "career-2339357206": "2026-08-31T21:53:25.671Z",
+    "career-2339473724": "2026-08-31T21:53:25.671Z",
+    "career-2339182975": "2026-08-31T21:53:25.671Z",
+    "career-2339427404": "2026-08-31T21:53:25.671Z",
+    "career-2339168419": "2026-08-31T21:53:25.671Z"
   },
   "keys": {
     "ontic::software engineer full stack::austin": "2026-08-26T22:02:51.007Z",
@@ -207,8 +214,15 @@
     "skild ai::software engineer ai inference::pittsburgh": "2026-08-31T17:10:46.850Z",
     "rezolve ai::software engineer::redmond": "2026-08-31T17:10:46.850Z",
     "google deepmind::research engineer frontier ai incubation deepmind::mountain view": "2026-08-31T17:10:46.850Z",
-    "stealth startup::software engineer::new york": "2026-08-31T17:10:46.850Z"
+    "stealth startup::software engineer::new york": "2026-08-31T17:10:46.850Z",
+    "housemax funding llc::software engineer::austin": "2026-08-31T21:53:25.671Z",
+    "everlaw::software engineer::oakland": "2026-08-31T21:53:25.671Z",
+    "cdk global::software engineer::portland": "2026-08-31T21:53:25.671Z",
+    "vermont mutual insurance::software engineer::montpelier": "2026-08-31T21:53:25.671Z",
+    "google::software engineer::mountain view": "2026-08-31T21:53:25.671Z",
+    "whatnot::software engineer 2027 new grad::new york": "2026-08-31T21:53:25.671Z",
+    "stellantis::motor controls application software engineer::auburn hills": "2026-08-31T21:53:25.671Z"
   },
-  "lastRun": "2026-08-31T17:10:46.850Z",
+  "lastRun": "2026-08-31T21:53:25.671Z",
   "lastSweepDate": "2026-08-31"
 }
