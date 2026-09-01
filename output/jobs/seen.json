@@ -109,7 +109,12 @@
     "career-2339473724": "2026-08-31T21:53:25.671Z",
     "career-2339182975": "2026-08-31T21:53:25.671Z",
     "career-2339427404": "2026-08-31T21:53:25.671Z",
-    "career-2339168419": "2026-08-31T21:53:25.671Z"
+    "career-2339168419": "2026-08-31T21:53:25.671Z",
+    "career-2339703058": "2026-09-01T01:16:09.611Z",
+    "career-2339573847": "2026-09-01T01:16:09.611Z",
+    "career-2339712049": "2026-09-01T01:16:09.611Z",
+    "career-2339749908": "2026-09-01T01:16:09.611Z",
+    "career-2339583425": "2026-09-01T01:16:09.611Z"
   },
   "keys": {
     "ontic::software engineer full stack::austin": "2026-08-26T22:02:51.007Z",
@@ -221,8 +226,13 @@
     "vermont mutual insurance::software engineer::montpelier": "2026-08-31T21:53:25.671Z",
     "google::software engineer::mountain view": "2026-08-31T21:53:25.671Z",
     "whatnot::software engineer 2027 new grad::new york": "2026-08-31T21:53:25.671Z",
-    "stellantis::motor controls application software engineer::auburn hills": "2026-08-31T21:53:25.671Z"
+    "stellantis::motor controls application software engineer::auburn hills": "2026-08-31T21:53:25.671Z",
+    "welbehealth::ai engineer::remote": "2026-09-01T01:16:09.611Z",
+    "planetscale::software engineer internal tools::san francisco": "2026-09-01T01:16:09.611Z",
+    "stripe::software engineer new grad::san francisco": "2026-09-01T01:16:09.611Z",
+    "nuvo::new grad ai engineer::san francisco": "2026-09-01T01:16:09.611Z",
+    "ihg::ai engineer::georgia": "2026-09-01T01:16:09.611Z"
   },
-  "lastRun": "2026-08-31T21:53:25.671Z",
+  "lastRun": "2026-09-01T01:16:09.611Z",
   "lastSweepDate": "2026-08-31"
 }
